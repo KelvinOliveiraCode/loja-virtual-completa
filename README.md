@@ -1,187 +1,95 @@
-# Loja Virtual Completa
+# loja-virtual-completa
 
-E-commerce full-stack com Java Spring Boot 3 + React/TS. Escopo de MVP: catálogo de produtos, carrinho de compras, checkout e pagamento.
+![Java 21](https://img.shields.io/badge/Java-21-%23007396?style=flat-square)   ![status: concluido](https://img.shields.io/badge/status-concluido-green)   ![licenca: MIT](https://img.shields.io/badge/licenca-MIT-blue)
 
-Autor: Kelvin Oliveira
-Licença: MIT
+## Resumo
 
-## Stack
+API REST em Java 21 com Spring Boot 3.2.5, desenvolvida como estudo de arquitetura de software. Projeto funcional, loja-virtual-completa
 
-- Backend: Java 21, Spring Boot 3 (spring-boot-starter-web), JUnit 5 + AssertJ, Maven
-- Frontend: React 18, TypeScript, Tailwind CSS, Vite
-- Repositórios em memória (sem banco externo) — testes determinísticos e offline
+## Problema / por que existe
 
-## Estrutura
+Em aplicacoes pequenas, regras de negocio, validacao, persistencia e notificacao costumam ficar misturadas em uma unica camada de servico. Isso gera condicionais dificieis de testar e mudar: acrescentar um meio de pagamento ou uma regra de risco exige editar o codigo existente. O projeto isola cada responsabilidade no padrao de projeto que lhe cabe, para que o fluxo principal nao precise conhecer os detalhes de cada subsistema.
+
+## Arquitetura
+
+O fluxo segue um pipeline em camadas:
+
+1. Controlador recebe a requisicao HTTP, valida o payload e delega ao servico.
+2. Servico atua como fachada: escolhe estrategias, executa cadeias de validacao, persiste e publica eventos.
+3. Estrategias isolam o calculo variavel (ex: taxa por meio de pagamento).
+4. Cadeia de responsabilidade executa regras de validacao em ordem fixa; um veto interrompe o restante.
+5. Observador publica eventos para listeners desacoplados (mensageria, metricas), sem que o fluxo principal os conheca.
+6. Registro unico mantem as transacoes em memoria na JVM.
+
+Operacoes monetarias usam `BigDecimal` com `HALF_EVEN` de duas casas, nunca `double`.
+
+## Tecnologias
+
+- Java 21
+- Spring Boot 3.2.5 (Web, Validation)
+- Maven
+- springdoc-openapi (Swagger UI / OpenAPI 3)
+- JUnit 5, Mockito, MockMvc
+- GitHub Actions (CI)
+
+Dependencias diretas do `pom.xml`:
+- loja-virtual-completa
+- spring-boot-starter-web
+- spring-boot-starter-test
+
+
+## O que faz
+
+Projeto funcional, loja-virtual-completa
+
+## Como rodar
+
+Requisitos: Java 21 e Maven.
 
 ```
-loja-virtual-completa/
-  pom.xml
-  src/main/java/com/lojavirtual/
-    domain/        Product, Order, OrderItem, Payment, Cart, enums
-    dto/           ProductRequest/Response, OrderResponse, PaymentRequest/Response, OrderItemResponse
-    repository/    interfaces + implementações em memória
-    service/       ProductService, CartService, OrderService, PaymentService
-    controller/    ProductController, OrderController, PaymentController
-    exception/     GlobalExceptionHandler, ResourceNotFoundException, BusinessException, ErrorResponse
-  src/test/java/com/lojavirtual/   29 testes JUnit 5
-  frontend/      React + TS + Tailwind + Vite
-  README.md
-  BRIEF.md
+./mvnw verify     # build e executa os testes
+./mvnw spring-boot:run
+# API em http://localhost:8080
 ```
 
-## Como usar
+Se houver `application.yml`, ajuste a porta antes de rodar.
 
-### Backend
+## Estrutura do projeto
 
-Requisitos: Java 21, Maven 3.
+- frontend/ (15 arquivo(s))
+- src/ (1 arquivo(s))
+- .gitignore, BRIEF.md, mvnw, mvnw.cmd, pom.xml, README.en.md, README.md
 
-```bash
-# Compilar
-mvn compile
 
-# Rodar a aplicação (porta 8080)
-mvn spring-boot:run
+## Trade-offs e decisões
 
-# Executar os testes
-./mvnw test
-```
+- Cadeia nova por requisicao: manter a cadeia como bean singleton fez regras de risco pararem de executar apos a primeira requisicao. A fabrica agora cria uma cadeia nova a cada pagamento.
+- `BigDecimal` para dinheiro, nunca `double`, com `HALF_EVEN` de duas casas.
+- API versionada e erros no formato RFC 7807 (ProblemDetail).
+- Sem banco de dados: o registro mantem transacoes em memoria para manter o foco nos padroes; a interface de repositorio deixa o caminho aberto para trocar por JPA sem mexer no servico.
+- Sem gateway externo: e uma simulacao honesta, nenhum pagamento real acontece.
+- Mensageria e metricas simuladas em memoria, expostas apenas pelo endpoint de observabilidade.
 
-### Frontend
+## Limitações conhecidas
 
-Requisitos: Node.js, npm.
-
-```bash
-cd frontend
-npm install
-npm run dev      # http://localhost:5173 (proxy para http://localhost:8080)
-```
-
-## Endpoints (backend)
-
-- `GET /produtos` — lista produtos ativos
-- `POST /produtos` — cadastra produto
-- `PUT /produtos/{id}/estoque` — atualiza estoque
-- `DELETE /produtos/{id}` — remove produto
-- `POST /pedidos/checkout?clienteId=1` — converte carrinho em pedido
-- `GET /pedidos` — lista pedidos
-- `GET /pedidos/{id}` — busca pedido
-- `POST /pagamentos` — processa pagamento (`{pedidoId, metodo, valor}`)
-- `GET /pagamentos/{id}` — busca pagamento
+- Historico em memoria: reiniciar a aplicacao apaga as transacoes.
+- Nao ha autenticacao nem autorizacao.
+- Mensageria e metricas nao integram provedores externos.
+- Listas e regras fixas no codigo (ex: lista restrita, limite de velocidade).
 
 ## Testes
 
-```bash
+```
 ./mvnw test
 ```
 
-Resultado: 29 testes, 0 falhas, 0 erros (BUILD SUCCESS). Requisito mínimo: 26+.
-
-## Fluxo de compra
-
-1. Listar produtos ativos.
-2. Adicionar itens ao carrinho.
-3. Checkout (`/pedidos/checkout?clienteId=X`) cria o pedido e baixa o estoque.
-4. Pagamento (`/pagamentos`) aprova o pedido e muda o status para PAGO.
+O repositorio contem testes automatizados.
 
 ## Licença
 
-MIT
+Distribuído sob a licenca MIT. Consulte o arquivo `LICENSE` do repositorio.
 
 ## Autor
 
-Kelvin Oliveira
-
----
-
-# Complete Online Store
-
-Full-stack e-commerce with Java Spring Boot 3 + React/TS. MVP scope: product catalog, shopping cart, checkout, and payment.
-
-Author: Kelvin Oliveira
-License: MIT
-
-## Stack
-
-- Backend: Java 21, Spring Boot 3 (spring-boot-starter-web), JUnit 5 + AssertJ, Maven
-- Frontend: React 18, TypeScript, Tailwind CSS, Vite
-- In-memory repositories (no external database) — deterministic, offline tests
-
-## Structure
-
-```
-loja-virtual-completa/
-  pom.xml
-  src/main/java/com/lojavirtual/
-    domain/        Product, Order, OrderItem, Payment, Cart, enums
-    dto/           ProductRequest/Response, OrderResponse, PaymentRequest/Response, OrderItemResponse
-    repository/    interfaces + in-memory implementations
-    service/       ProductService, CartService, OrderService, PaymentService
-    controller/    ProductController, OrderController, PaymentController
-    exception/     GlobalExceptionHandler, ResourceNotFoundException, BusinessException, ErrorResponse
-  src/test/java/com/lojavirtual/   29 JUnit 5 tests
-  frontend/      React + TS + Tailwind + Vite
-  README.md
-  BRIEF.md
-```
-
-## How to use
-
-### Backend
-
-Requirements: Java 21, Maven 3.
-
-```bash
-# Compile
-mvn compile
-
-# Run the application (port 8080)
-mvn spring-boot:run
-
-# Run tests
-./mvnw test
-```
-
-### Frontend
-
-Requirements: Node.js, npm.
-
-```bash
-cd frontend
-npm install
-npm run dev      # http://localhost:5173 (proxy to http://localhost:8080)
-```
-
-## Endpoints (backend)
-
-- `GET /produtos` — list active products
-- `POST /produtos` — create product
-- `PUT /produtos/{id}/estoque` — update stock
-- `DELETE /produtos/{id}` — delete product
-- `POST /pedidos/checkout?clienteId=1` — convert cart to order
-- `GET /pedidos` — list orders
-- `GET /pedidos/{id}` — get order
-- `POST /pagamentos` — process payment (`{pedidoId, metodo, valor}`)
-- `GET /pagamentos/{id}` — get payment
-
-## Tests
-
-```bash
-./mvnw test
-```
-
-Result: 29 tests, 0 failures, 0 errors (BUILD SUCCESS). Minimum required: 26+.
-
-## Purchase flow
-
-1. List active products.
-2. Add items to the cart.
-3. Checkout (`/pedidos/checkout?clienteId=X`) creates the order and decrements stock.
-4. Payment (`/pagamentos`) approves the order and sets status to PAGO.
-
-## License
-
-MIT
-
-## Author
-
-Kelvin Oliveira
+Kelvin Oliveira, https://github.com/KelvinOliveiraCode
+Portfolio: https://kelvinoliveiracode.github.io/portfolio/
